@@ -1,7 +1,36 @@
-apiVersion: 1
+apiVersion: 2
 
 datasources:
-  - name: Open-Telemetry-Example
+  # - name: Open-Telemetry-Example
+  #   type: prometheus
+  #   url: http://prometheus:9090
+  #   editable: true
+  - name: Prometheus
     type: prometheus
+    uid: prometheus
     url: http://prometheus:9090
-    editable: true
+    jsonData:
+        httpMethod: GET
+    version: 1
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    url: http://tempo
+    jsonData:
+      httpMethod: GET
+      serviceMap:
+        datasourceUid: 'prometheus'
+      nodeGraph:
+        enabled: true
+    version: 1
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      derivedFields:
+      - datasourceName: Tempo
+        datasourceUid: 'tempo'
+        matcherRegex: trace_id=(\w+)
+        name: traceID
+        url: '$${__value.raw}'

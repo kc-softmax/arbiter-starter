@@ -2,40 +2,109 @@ receivers:
   otlp:
     protocols:
       http:
-        endpoint: :4318
+        endpoint: 0.0.0.0:4318
       grpc:
-        endpoint: :4317
+        endpoint: 0.0.0.0:4317
 processors:
   batch:
     timeout: 1s
+  resource:
+    attributes:
+      - key: test.key
+        value: "test-value"
+        action: insert
+
+connectors:
+  # basic service graph
+  servicegraph:
+    latency_histogram_buckets: [100ms, 250ms, 1s, 5s, 10s]
+  # a bit more elaborate spanmetrics
+  spanmetrics:
+    # this is relevant, since grafana expects the traces_spanmetrics_ prefix
+    namespace: traces.spanmetrics
+    # this is relevant, since grafana expects the historgram metrics in seconds
+    histogram:
+      unit: "s"
+    # the rest is close to default with some minor QoL additions
+    dimensions:
+      - name: process.type
+    #   - name: http.method
+    #     default: GET
+    #   - name: http.status_code
+    exemplars:
+      enabled: true
+    events:
+      enabled: true
+      dimensions:
+        - name: exception.type
+        - name: exception.message
+    resource_metrics_key_attributes:
+      - service.name
+      - telemetry.sdk.language
+      - telemetry.sdk.name
+
 
 exporters:
   debug:
-    # basic, normal, detailed
     verbosity: detailed
   otlp/jaeger:
     endpoint: jaeger-all-in-one:4317
     tls:
       insecure: true
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+  otlp/uptrace:
+    endpoint: https://otlp.uptrace.dev:4317
+    tls: { insecure: false }
+    headers:
+      uptrace-dsn: 'https://P9EqTI8jt8ptqQw0DyhpWA@api.uptrace.dev?grpc=4317'
+  otlp:
+    endpoint: oteltui:4317
+    # tls: { insecure: false }
+    tls:
+      insecure: true
+  # file:
+  #   path: ./filename.json
+  otlp/tempo:
+    endpoint: http://tempo:4317
+    tls:
+      insecure: true
+      insecure_skip_verify: true
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+
+  # otlphttp/loki:
+  #   # auth:
+  #   #   authenticator: basicauth/loki
+  #   endpoint: http://loki:3100/otlp/v1/logs
+
+  otlphttp/logs:
+    endpoint: "http://loki:3100/otlp"
+    tls:
+      insecure: true
 
 extensions:
+  health_check:
   pprof:
     endpoint: :1888
   zpages:
     endpoint: :55679
 
 service:
-  extensions: [pprof, zpages]
+  extensions: [pprof, zpages, health_check]
   pipelines:
-    traces:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [debug, otlp/jaeger]
-    metrics:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [debug]
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug]
+      # exporters: [file]
+      exporters: [debug, otlp/uptrace, otlp, otlphttp/logs]
+    metrics:
+      receivers: [otlp, spanmetrics, servicegraph]
+      # receivers: [otlp, spanmetrics]
+      processors: [batch]
+      exporters: [prometheus, otlp/uptrace]
+    traces:
+      receivers: [otlp]
+      processors: [batch, resource]
+      exporters: [otlp/jaeger, otlp/uptrace, otlp, otlp/tempo, spanmetrics, servicegraph]
+      # exporters: [otlp/jaeger, otlp/uptrace, otlp, otlp/tempo, spanmetrics]
