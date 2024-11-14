@@ -1,35 +1,5 @@
 version: '3.9'
 services:
-  # order-service:
-  #   build: ./order_service
-  #   container_name: order-service
-  #   environment:
-  #     - name=value
-  #   ports:
-  #     - "8000:8000"
-  #   depends_on:
-  #     - nats
-
-  # user-service:
-  #   build: ./user_service
-  #   container_name: user-service
-  #   ports:
-  #     - "8001:8001"
-
-  # payment-service:
-  #   build: ./payment_service
-  #   container_name: payment-service
-  #   ports:
-  #     - "8002:8002"
-  #   depends_on:
-  #     - nats
-  # notification-service:
-  #   build: ./notification_service
-  #   container_name: notification-service
-  #   ports:
-  #     - "8003:8003"
-  #   depends_on:
-  #     - nats
   # Jaeger
   jaeger-all-in-one:
     image: jaegertracing/all-in-one:latest
@@ -69,11 +39,13 @@ services:
       - "9090:9090"
   
   grafana:
-    image: grafana/grafana:10.4.2
+    image: grafana/grafana:latest
     container_name: grafana
     volumes:
       - ./grafana/grafana.ini:/etc/grafana/grafana.ini
       - ./grafana/provisioning/:/etc/grafana/provisioning/
+      - ./grafana/provisioning/dashboards/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml
+      - ./grafana/dashboards:/etc/grafana/dashboards
     ports:
       - "3000:3000"
 
@@ -84,6 +56,14 @@ services:
       - "14317:4317"  # Tempo gRPC receiver
       - "14250:14250"
   
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml
+    command: -config.file=/etc/loki/local-config.yaml
+
   nats:
     image: nats:latest
     container_name: nats
